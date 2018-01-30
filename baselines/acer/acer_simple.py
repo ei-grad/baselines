@@ -209,6 +209,7 @@ class Model(object):
         self.initial_state = step_model.initial_state
         tf.global_variables_initializer().run(session=sess)
 
+
 class Runner(object):
     def __init__(self, env, model, nsteps, nstack):
         self.env = env
