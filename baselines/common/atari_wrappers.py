@@ -3,6 +3,10 @@ from collections import deque
 import gym
 from gym import spaces
 import cv2
+
+import pygame
+
+
 cv2.ocl.setUseOpenCL(False)
 
 
@@ -208,9 +212,81 @@ class LazyFrames(object):
             out = out.astype(dtype)
         return out
 
+
+# Hack for fast learning, should be removed later
+class RewardForPassingGates(gym.Wrapper):
+
+    def reset(self):
+        """On game reset, remember the hash of initial score"""
+        s = self.env.reset()
+        self.should_render = np.random.random() > 0.99
+        self.__steps = 0
+        # hash of the image chunk with scoreboard
+        self.prev_score_hash = hash(s[31:38, 67:81].tobytes())
+        self.gates_passed = 0
+        return s
+
+    def step(self, action):
+        """on each step, if score has changed, give +1 reward, else +0"""
+
+        s, _, done, info = self.env.step(action)
+
+        if self.should_render:
+            if self.__steps % 24 == 0:
+                show(s)
+
+        # hash of the same image chunk
+        new_score_hash = hash(s[31:38, 67:81].tobytes())
+
+        # reward = +1 if we have just crossed the gate, else 0
+        r = int(new_score_hash != self.prev_score_hash)
+        if r:
+            self.gates_passed += 1
+
+        # remember new score
+        self.prev_score_hash = new_score_hash
+
+        self.__steps += 1
+        if self.__steps > 1500:
+            done = True
+            r = -1000
+        elif done:
+            done = True
+            r = int(self.gates_passed * 3000. / self.__steps)
+            print("Finish reward: %d" % r)
+
+        return s, r, done, info
+
+
+def show(a):
+
+    global screen
+
+    if 'screen' not in globals():
+        screen = pygame.display.set_mode(
+            (240, 320),
+            pygame.RESIZABLE | pygame.NOFRAME
+        )
+
+    for event in pygame.event.get():
+        if event.type == pygame.VIDEORESIZE:
+            screen = pygame.display.set_mode(
+                event.dict['size'],
+                pygame.RESIZABLE | pygame.NOFRAME
+            )
+
+    pygame.transform.scale(pygame.surfarray.make_surface(
+        np.swapaxes(a / np.max(a) * 255., 0, 1),
+        # np.swapaxes(a * 255., 0, 1),
+    ), screen.get_size(), screen)
+
+    pygame.display.flip()
+
+
 def make_atari(env_id):
     env = gym.make(env_id)
-    assert 'NoFrameskip' in env.spec.id
+    env = RewardForPassingGates(env)
+    #assert 'NoFrameskip' in env.spec.id
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
     return env

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import gym
+
 from baselines import logger
 from baselines.acer.acer_simple import learn
 from baselines.acer.policies import AcerCnnPolicy, AcerLstmPolicy
@@ -6,6 +8,7 @@ from baselines.common.cmd_util import make_atari_env, atari_arg_parser
 
 def train(env_id, num_timesteps, seed, policy, lrschedule, num_cpu):
     env = make_atari_env(env_id, num_cpu, seed)
+    #env = gym.make(env_id)
     if policy == 'cnn':
         policy_fn = AcerCnnPolicy
     elif policy == 'lstm':

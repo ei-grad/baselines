@@ -237,6 +237,7 @@ class Runner(object):
     def run(self):
         enc_obs = np.split(self.obs, self.nstack, axis=3)  # so now list of obs steps
         mb_obs, mb_actions, mb_mus, mb_dones, mb_rewards = [], [], [], [], []
+        should_show = np.random.random() > 0.9
         for _ in range(self.nsteps):
             actions, mus, states = self.model.step(self.obs, state=self.states, mask=self.dones)
             mb_obs.append(np.copy(self.obs))
@@ -340,11 +341,13 @@ def learn(policy, env, seed, nsteps=20, nstack=4, total_timesteps=int(80e6), q_c
     nbatch = nenvs*nsteps
     acer = Acer(runner, model, buffer, log_interval)
     acer.tstart = time.time()
-    for acer.steps in range(0, total_timesteps, nbatch): #nbatch samples, 1 on_policy call and multiple off-policy calls
-        acer.call(on_policy=True)
-        if replay_ratio > 0 and buffer.has_atleast(replay_start):
-            n = np.random.poisson(replay_ratio)
-            for _ in range(n):
-                acer.call(on_policy=False)  # no simulation steps in this
-
+    try:
+        for acer.steps in range(0, total_timesteps, nbatch): #nbatch samples, 1 on_policy call and multiple off-policy calls
+            acer.call(on_policy=True)
+            if replay_ratio > 0 and buffer.has_atleast(replay_start):
+                n = np.random.poisson(replay_ratio)
+                for _ in range(n):
+                    acer.call(on_policy=False)  # no simulation steps in this
+    except KeyboardInterrupt:
+        pass
     env.close()
